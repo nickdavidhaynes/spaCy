@@ -24,7 +24,7 @@ from .. import util
     texts_loc=("Path to jsonl file with texts to learn from", "positional", None, str),
     vectors_model=("Name or path to vectors model to learn from"),
     output_dir=("Directory to write models each epoch", "positional", None, str),
-    existing_model=("Directory with a previously pre-trained model to resume training.", "option", "em", str),
+    resume_from=("Path to previously pretrained model.", "option", "rf", str),
     width=("Width of CNN layers", "option", "cw", int),
     depth=("Depth of CNN layers", "option", "cd", int),
     embed_rows=("Embedding rows", "option", "er", int),
