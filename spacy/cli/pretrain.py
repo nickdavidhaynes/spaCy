@@ -42,7 +42,7 @@ def pretrain(
     texts_loc,
     vectors_model,
     output_dir,
-    existing_model=None,
+    resume_from=None,
     width=96,
     depth=4,
     embed_rows=2000,
