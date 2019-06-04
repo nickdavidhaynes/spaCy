@@ -13,11 +13,11 @@ from thinc.neural.util import prefer_gpu, get_array_module
 from wasabi import Printer
 import srsly
 
-from spacy.tokens import Doc
-from spacy.attrs import ID, HEAD
-from spacy._ml import Tok2Vec, flatten, chain, create_default_optimizer
-from spacy._ml import masked_language_model
-from spacy import util
+from ..tokens import Doc
+from ..attrs import ID, HEAD
+from .._ml import Tok2Vec, flatten, chain, create_default_optimizer
+from .._ml import masked_language_model
+from .. import util
 
 
 @plac.annotations(
@@ -101,7 +101,10 @@ def pretrain(
     msg.good("Loaded model '{}'".format(vectors_model))
     pretrained_vectors = None if not use_vectors else nlp.vocab.vectors.name
     
-    tok2vec = Tok2Vec(
+    tok2vec = 
+    model = create_pretraining_model(
+        nlp,
+        Tok2Vec(
             width,
             embed_rows,
             conv_depth=depth,
@@ -109,8 +112,8 @@ def pretrain(
             bilstm_depth=0,  # Requires PyTorch. Experimental.
             cnn_maxout_pieces=3,  # You can try setting this higher
             subword_features=True,  # Set to False for Chinese etc
-        )
-    model = create_pretraining_model(nlp, tok2vec)
+        ),
+    )
         
     if existing_model is not None:
         with open(existing_model, 'rb') as file_:
