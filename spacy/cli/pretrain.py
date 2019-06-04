@@ -13,17 +13,18 @@ from thinc.neural.util import prefer_gpu, get_array_module
 from wasabi import Printer
 import srsly
 
-from ..tokens import Doc
-from ..attrs import ID, HEAD
-from .._ml import Tok2Vec, flatten, chain, create_default_optimizer
-from .._ml import masked_language_model
-from .. import util
+from spacy.tokens import Doc
+from spacy.attrs import ID, HEAD
+from spacy._ml import Tok2Vec, flatten, chain, create_default_optimizer
+from spacy._ml import masked_language_model
+from spacy import util
 
 
 @plac.annotations(
     texts_loc=("Path to jsonl file with texts to learn from", "positional", None, str),
     vectors_model=("Name or path to vectors model to learn from"),
     output_dir=("Directory to write models each epoch", "positional", None, str),
+    existing_model=("Directory with a previously pre-trained model to resume training.", "option", "em", str),
     width=("Width of CNN layers", "option", "cw", int),
     depth=("Depth of CNN layers", "option", "cd", int),
     embed_rows=("Embedding rows", "option", "er", int),
@@ -41,6 +42,7 @@ def pretrain(
     texts_loc,
     vectors_model,
     output_dir,
+    existing_model=None,
     width=96,
     depth=4,
     embed_rows=2000,
@@ -61,10 +63,8 @@ def pretrain(
     vectors which match the pre-trained ones. The weights are saved to a directory
     after each epoch. You can then pass a path to one of these pre-trained weights
     files to the 'spacy train' command.
-
     This technique may be especially helpful if you have little labelled data.
     However, it's still quite experimental, so your mileage may vary.
-
     To load the weights back in during 'spacy train', you need to ensure
     all settings are the same between pretraining and training. The API and
     errors around this need some improvement.
@@ -100,9 +100,8 @@ def pretrain(
         nlp = util.load_model(vectors_model)
     msg.good("Loaded model '{}'".format(vectors_model))
     pretrained_vectors = None if not use_vectors else nlp.vocab.vectors.name
-    model = create_pretraining_model(
-        nlp,
-        Tok2Vec(
+    
+    tok2vec = Tok2Vec(
             width,
             embed_rows,
             conv_depth=depth,
@@ -110,8 +109,13 @@ def pretrain(
             bilstm_depth=0,  # Requires PyTorch. Experimental.
             cnn_maxout_pieces=3,  # You can try setting this higher
             subword_features=True,  # Set to False for Chinese etc
-        ),
-    )
+        )
+    model = create_pretraining_model(nlp, tok2vec)
+        
+    if existing_model is not None:
+        with open(existing_model, 'rb') as file_:
+            model.from_bytes(file_.read())
+
     optimizer = create_default_optimizer(model.ops)
     tracker = ProgressTracker(frequency=10000)
     msg.divider("Pre-training tok2vec layer")
@@ -125,6 +129,10 @@ def pretrain(
                 "wb"
             ) as file_:
                 file_.write(model.tok2vec.to_bytes())
+            with (output_dir / ("full_model%d%s.bin" % (epoch, is_temp_str))).open(
+                "wb"
+            ) as file_:
+                file_.write(model.to_bytes())
             log = {
                 "nr_word": tracker.nr_word,
                 "loss": tracker.loss,
@@ -163,7 +171,6 @@ def pretrain(
 
 def make_update(model, docs, optimizer, drop=0.0, objective="L2"):
     """Perform an update over a single batch of documents.
-
     docs (iterable): A batch of `Doc` objects.
     drop (float): The droput rate.
     optimizer (callable): An optimizer.
@@ -199,7 +206,6 @@ def make_docs(nlp, batch, min_length, max_length):
 def get_vectors_loss(ops, docs, prediction, objective="L2"):
     """Compute a mean-squared error loss between the documents' vectors and
     the prediction.
-
     Note that this is ripe for customization! We could compute the vectors
     in some other word, e.g. with an LSTM language model, or use some other
     type of objective.
